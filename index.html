@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIF Tracker — MRF Paints</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-identity-browser/3.9.0/msal-browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #C8102E;
+    --red-dark: #9e0c24;
+    --red-light: #fdf0f2;
+    --ink: #1a1a2e;
+    --ink-soft: #4a4a6a;
+    --ink-faint: #8888aa;
+    --border: #e2e2f0;
+    --surface: #ffffff;
+    --surface-2: #f7f7fc;
+    --surface-3: #eeeef8;
+    --green: #0d7c4e;
+    --green-light: #edfaf4;
+    --amber: #b45309;
+    --amber-light: #fffbeb;
+    --blue: #1d4ed8;
+    --blue-light: #eff6ff;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 4px 12px rgba(0,0,0,0.08);
+    --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--surface-2); color: var(--ink); min-height: 100vh; font-size: 14px; }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--ink);
+    color: white;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; height: 56px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 12px; }
+  .brand-logo {
+    width: 32px; height: 32px; background: var(--red);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Serif Display', serif; font-size: 18px; color: white; font-weight: bold;
+  }
+  .brand-name { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+  .brand-sub { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 1px; }
+  .topbar-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(255,255,255,0.8); }
+  .user-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--red); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: white;
+  }
+  .badge-role {
+    background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; color: rgba(255,255,255,0.7);
+  }
+  .btn-logout {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.7); padding: 5px 12px; border-radius: 6px;
+    cursor: pointer; font-size: 12px; transition: all 0.2s;
+  }
+  .btn-logout:hover { background: rgba(255,255,255,0.15); color: white; }
+
+  /* ── LOGIN ── */
+  #loginScreen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--ink) 0%, #2d1b4e 100%);
+    position: relative; overflow: hidden;
+  }
+  #loginScreen::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(200,16,46,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.1) 0%, transparent 50%);
+  }
+  .login-card {
+    background: white; border-radius: var(--radius-lg); padding: 48px;
+    width: 380px; box-shadow: var(--shadow-lg); position: relative; z-index: 1;
+    text-align: center;
+  }
+  .login-logo {
+    width: 64px; height: 64px; background: var(--red);
+    border-radius: 16px; margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Serif Display', serif; font-size: 32px; color: white;
+    box-shadow: 0 8px 24px rgba(200,16,46,0.35);
+  }
+  .login-title { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--ink); margin-bottom: 6px; }
+  .login-sub { color: var(--ink-faint); font-size: 13px; margin-bottom: 32px; }
+  .btn-ms {
+    width: 100%; padding: 13px; border-radius: var(--radius);
+    background: var(--red); color: white; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.2s; box-shadow: 0 4px 12px rgba(200,16,46,0.3);
+  }
+  .btn-ms:hover { background: var(--red-dark); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(200,16,46,0.4); }
+  .login-footer { margin-top: 20px; font-size: 11px; color: var(--ink-faint); }
+
+  /* ── LAYOUT ── */
+  .app-layout { display: flex; min-height: calc(100vh - 56px); }
+  .sidebar {
+    width: 220px; background: white; border-right: 1px solid var(--border);
+    padding: 20px 12px; flex-shrink: 0; position: sticky; top: 56px;
+    height: calc(100vh - 56px); overflow-y: auto;
+  }
+  .sidebar-section { margin-bottom: 24px; }
+  .sidebar-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-faint); padding: 0 8px; margin-bottom: 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+    border-radius: 8px; cursor: pointer; transition: all 0.15s;
+    color: var(--ink-soft); font-size: 13.5px; font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--ink); }
+  .nav-item.active { background: var(--red-light); color: var(--red); }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-badge {
+    margin-left: auto; background: var(--red); color: white;
+    border-radius: 10px; padding: 1px 6px; font-size: 10px; font-weight: 700;
+  }
+  .main { flex: 1; padding: 24px; overflow-y: auto; }
+
+  /* ── CARDS & PANELS ── */
+  .page-header { margin-bottom: 24px; }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--ink); }
+  .page-sub { color: var(--ink-faint); font-size: 13px; margin-top: 4px; }
+  .card {
+    background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .card-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-weight: 600; font-size: 15px; color: var(--ink); }
+  .card-body { padding: 22px; }
+
+  /* ── STATS ROW ── */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card {
+    background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
+    padding: 18px 20px; box-shadow: var(--shadow-sm);
+  }
+  .stat-label { font-size: 12px; color: var(--ink-faint); font-weight: 500; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-family: 'DM Serif Display', serif; color: var(--ink); line-height: 1; }
+  .stat-sub { font-size: 11px; color: var(--ink-faint); margin-top: 5px; }
+  .stat-card.red { border-left: 3px solid var(--red); }
+  .stat-card.amber { border-left: 3px solid #f59e0b; }
+  .stat-card.green { border-left: 3px solid var(--green); }
+  .stat-card.blue { border-left: 3px solid var(--blue); }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--surface-2); padding: 10px 14px; text-align: left;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--ink-faint); border-bottom: 1px solid var(--border);
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--ink-soft); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface-2); }
+
+  /* ── STATUS CHIPS ── */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .chip-pending { background: #fef3c7; color: #92400e; }
+  .chip-progress { background: var(--blue-light); color: var(--blue); }
+  .chip-parallel { background: var(--purple-light); color: var(--purple); }
+  .chip-overdue { background: #fee2e2; color: #991b1b; }
+  .chip-closed { background: var(--green-light); color: var(--green); }
+  .chip-draft { background: var(--surface-3); color: var(--ink-faint); }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: var(--red); color: white; box-shadow: 0 2px 6px rgba(200,16,46,0.25); }
+  .btn-primary:hover { background: var(--red-dark); transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--surface-3); color: var(--ink); }
+  .btn-ghost { background: transparent; color: var(--ink-soft); }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+  .btn-green { background: var(--green); color: white; }
+  .btn-green:hover { background: #0a6840; }
+  .btn-amber { background: var(--amber); color: white; }
+
+  /* ── FORM ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .form-full { grid-column: 1 / -1; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+  .field input, .field select, .field textarea {
+    padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13.5px; color: var(--ink);
+    background: white; outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--red); }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field-hint { font-size: 11px; color: var(--ink-faint); }
+  .section-divider { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink-faint); padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; grid-column: 1 / -1; }
+
+  /* ── WIZARD STEPS ── */
+  .wizard-steps { display: flex; align-items: center; gap: 0; margin-bottom: 28px; overflow-x: auto; padding-bottom: 4px; }
+  .step-item { display: flex; align-items: center; }
+  .step-dot {
+    width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
+    border: 2px solid var(--border); background: white; color: var(--ink-faint);
+    transition: all 0.3s;
+  }
+  .step-dot.done { background: var(--green); border-color: var(--green); color: white; }
+  .step-dot.active { background: var(--red); border-color: var(--red); color: white; box-shadow: 0 0 0 4px rgba(200,16,46,0.15); }
+  .step-label { font-size: 11px; color: var(--ink-faint); margin-top: 4px; white-space: nowrap; }
+  .step-connector { flex: 1; height: 2px; background: var(--border); min-width: 24px; }
+  .step-connector.done { background: var(--green); }
+  .step-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+  /* ── TIMELINE ── */
+  .timeline { padding: 0; }
+  .tl-item { display: flex; gap: 14px; padding-bottom: 20px; position: relative; }
+  .tl-item:not(:last-child)::after {
+    content: ''; position: absolute; left: 15px; top: 32px;
+    width: 2px; height: calc(100% - 12px); background: var(--border);
+  }
+  .tl-dot {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; border: 2px solid var(--border); background: white;
+    position: relative; z-index: 1;
+  }
+  .tl-dot.done { background: var(--green-light); border-color: var(--green); }
+  .tl-dot.active { background: var(--red-light); border-color: var(--red); box-shadow: 0 0 0 3px rgba(200,16,46,0.12); }
+  .tl-dot.pending { background: var(--surface-2); }
+  .tl-dot.parallel { background: var(--purple-light); border-color: var(--purple); }
+  .tl-content { flex: 1; padding-top: 5px; }
+  .tl-title { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .tl-meta { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+  .tl-remark { font-size: 12px; color: var(--ink-soft); margin-top: 6px; background: var(--surface-2); padding: 8px 10px; border-radius: 6px; border-left: 3px solid var(--border); }
+
+  /* ── PARALLEL BADGE ── */
+  .parallel-group { display: flex; gap: 8px; margin: 8px 0; }
+  .parallel-tag {
+    display: flex; align-items: center; gap: 5px; padding: 4px 10px;
+    border-radius: 6px; font-size: 11px; font-weight: 600;
+    background: var(--purple-light); color: var(--purple); border: 1px solid #c4b5fd;
+  }
+
+  /* ── ACTION PANEL ── */
+  .action-panel {
+    background: var(--surface-2); border: 1.5px solid var(--border); border-radius: var(--radius);
+    padding: 18px; margin-top: 20px;
+  }
+  .action-panel-title { font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200;
+    display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto;
+  }
+  .modal {
+    background: white; border-radius: var(--radius-lg); width: 100%; max-width: 760px;
+    box-shadow: var(--shadow-lg); animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+  .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--ink); }
+  .modal-close { width: 30px; height: 30px; border-radius: 6px; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--ink-soft); }
+  .modal-close:hover { background: var(--surface-3); }
+  .modal-body { padding: 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+  /* ── TAT INDICATOR ── */
+  .tat-bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 4px; width: 80px; }
+  .tat-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .tat-ok { background: var(--green); }
+  .tat-warn { background: #f59e0b; }
+  .tat-over { background: var(--red); }
+
+  /* ── TOAST ── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 10px; }
+  .toast {
+    background: var(--ink); color: white; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px;
+    animation: toastIn 0.3s ease; max-width: 320px;
+  }
+  .toast.success { background: var(--green); }
+  .toast.error { background: #dc2626; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* ── SEARCH ── */
+  .search-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .search-input {
+    flex: 1; padding: 9px 14px 9px 36px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238888aa' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 12px center no-repeat;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--red); }
+  .filter-select {
+    padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--ink-soft);
+    background: white; outline: none; cursor: pointer;
+  }
+
+  .photo-upload {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer; transition: all 0.15s; color: var(--ink-faint);
+  }
+  .photo-upload:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+  .photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .photo-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--ink-faint); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-title { font-size: 16px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+
+  .loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 40px; color: var(--ink-faint); }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--red); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .cif-id { font-family: monospace; font-size: 12px; background: var(--surface-2); padding: 2px 7px; border-radius: 4px; color: var(--ink); font-weight: 600; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .stats-row { grid-template-columns: 1fr 1fr; } .form-grid { grid-template-columns: 1fr; } }
+
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .info-item { background: var(--surface-2); padding: 12px; border-radius: 8px; }
+  .info-item-label { font-size: 11px; color: var(--ink-faint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .info-item-value { font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 3px; }
+
+  select option[disabled] { color: #ccc; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">M</div>
+    <div class="login-title">CIF Tracker</div>
+    <div class="login-sub">Complaint Investigation Form · MRF Paints</div>
+    <button class="btn-ms" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="1" width="10" height="10" fill="#f25022"/><rect x="13" y="1" width="10" height="10" fill="#7fba00"/><rect x="1" y="13" width="10" height="10" fill="#00a4ef"/><rect x="13" y="13" width="10" height="10" fill="#ffb900"/></svg>
+      Sign in with Microsoft 365
+    </button>
+    <div class="login-footer">Secured via Azure AD · MRF Corp Limited</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appRoot" style="display:none;">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-logo">M</div>
+      <div>
+        <div class="brand-name">CIF Tracker</div>
+        <div class="brand-sub">Complaint Investigation Form</div>
+      </div>
+    </div>
+    <div class="topbar-user">
+      <div id="userAvatar" class="user-avatar">?</div>
+      <div>
+        <div id="userName" style="font-size:13px;font-weight:600;color:white;"></div>
+        <div id="userRole" class="badge-role"></div>
+      </div>
+      <button class="btn-logout" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Menu</div>
+        <div class="nav-item active" onclick="navigate('dashboard')" id="nav-dashboard">
+          <span class="icon">📊</span> Dashboard
+        </div>
+        <div class="nav-item" onclick="navigate('new-cif')" id="nav-new-cif">
+          <span class="icon">➕</span> New CIF
+        </div>
+        <div class="nav-item" onclick="navigate('my-cifs')" id="nav-my-cifs">
+          <span class="icon">📋</span> My CIFs
+          <span class="nav-badge" id="badgeMyCifs" style="display:none"></span>
+        </div>
+        <div class="nav-item" onclick="navigate('pending')" id="nav-pending">
+          <span class="icon">⏳</span> Pending Action
+          <span class="nav-badge" id="badgePending" style="display:none"></span>
+        </div>
+        <div class="nav-item" onclick="navigate('all-cifs')" id="nav-all-cifs">
+          <span class="icon">🗂️</span> All CIFs
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Reports</div>
+        <div class="nav-item" onclick="navigate('reports')" id="nav-reports">
+          <span class="icon">📈</span> Analytics
+        </div>
+      </div>
+    </div>
+    <div class="main" id="mainContent"></div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "a80e0c58-e5d1-4708-b32a-23b681901d2c",
+    authority: "https://login.microsoftonline.com/2d3a57cf-4548-4088-a4b4-3f336f531b04",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "sessionStorage" }
+};
+
+const SHAREPOINT_SITE = "https://mrfvapocurepaint.sharepoint.com/sites/SampleTrack";
+const SP_LIST_CIF = "CIF_Requests";
+const SP_LIST_PRODUCTS = "CIF_Products";
+const SP_LIST_PRODUCT_GROUPS = "CIF_ProductGroups";
+
+const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+const SCOPES = ["https://mrfvapocurepaint.sharepoint.com/.default", "https://graph.microsoft.com/Mail.Send", "User.Read"];
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let currentUser = null;
+let currentRole = null;
+let currentPage = 'dashboard';
+let allCIFs = [];
+let productData = {};
+let productGroupsData = {};
+let pendingUploadFiles = [];
+
+// ══════════════════════════════════════════════
+// STATIC DATA (replace with SharePoint lookup calls in production)
+// ══════════════════════════════════════════════
+const CATEGORIES = ["Wall", "Wood", "Metal", "Others"];
+
+const PRODUCT_GROUPS = {
+  "Wall": ["Interior Emulsion", "Exterior Emulsion", "Primer", "Putty", "Aqua Coat", "Textured Finish", "Distemper", "Enamel (Wall)"],
+  "Wood": ["Wood Primer", "Wood Polish", "PU Coat", "NC Lacquer", "Melamine Coat", "Thinner (Wood)", "Wood Stain", "Sanding Sealer"],
+  "Metal": ["Metal Primer", "Anti-corrosive Paint", "Enamel (Metal)", "Thinner (Metal)", "Epoxy Coat", "Zinc Phosphate", "Heat Resistant"],
+  "Others": ["Specialty Coat", "Floor Paint", "Road Marking", "Industrial Coating", "Others"]
+};
+
+const CIF_TYPES = ["Packaging", "Color / Shade Variation", "In-Can", "Application", "Dry Film Performance"];
+
+const COMPLAINT_TYPES_MAP = {
+  "Packaging": ["Damaged Container", "Label Issue", "Leakage", "Wrong Packaging", "Quantity Short"],
+  "Color / Shade Variation": ["Off Shade", "Metamerism", "Batch-to-Batch Variation", "Fade / Chalking"],
+  "In-Can": ["Skinning", "Sedimentation", "Gelation", "Foul Smell", "Separation", "Foaming"],
+  "Application": ["Poor Spreading", "Brush Drag", "Sagging / Running", "Slow Drying", "Poor Coverage", "Roller Marks"],
+  "Dry Film Performance": ["Peeling", "Cracking", "Blistering", "Poor Sheen", "Staining", "Poor Adhesion", "Efflorescence"]
+};
+
+// Role mapping (email → role) — configure per your org
+const ROLE_MAP = {
+  // "user@mrf.com": "ST",
+  // "asm@mrf.com": "ASM",
+  // etc.
+};
+
+const WORKFLOW_STAGES = [
+  { key: "submitted",   label: "Submitted",     role: "ST",      tat: 0 },
+  { key: "asm",         label: "ASM Review",    role: "ASM",     tat: 24 },
+  { key: "trainer",     label: "Trainer",       role: "Trainer", tat: 24 },
+  { key: "rsm",         label: "RSM Review",    role: "RSM",     tat: 24 },
+  { key: "rd_quality",  label: "R&D + Quality", role: "parallel",tat: 48 },
+  { key: "pm",          label: "Product Mgr",   role: "PM",      tat: 24 },
+  { key: "nsh",         label: "NSH",           role: "NSH",     tat: 24 },
+  { key: "closed",      label: "Closed",        role: null,      tat: 0  }
+];
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+async function signIn() {
+  try {
+    const resp = await msalInstance.loginPopup({ scopes: SCOPES });
+    msalInstance.setActiveAccount(resp.account);
+    await initApp(resp.account);
+  } catch(e) {
+    showToast("Sign-in failed: " + e.message, "error");
+    // DEMO MODE fallback
+    await initApp({ name: "Demo User (ST)", username: "demo@mrf.com" });
+  }
+}
+
+async function initApp(account) {
+  // Determine role
+  const email = account.username?.toLowerCase() || "";
+  currentRole = ROLE_MAP[email] || detectRoleFromEmail(email) || "ST";
+  currentUser = { name: account.name, email: account.username, role: currentRole };
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  document.getElementById('userName').textContent = currentUser.name;
+  document.getElementById('userRole').textContent = currentRole;
+  document.getElementById('userAvatar').textContent = currentUser.name?.charAt(0).toUpperCase() || "U";
+
+  // Adjust nav based on role
+  if (currentRole === 'ST') {
+    document.getElementById('nav-pending').style.display = 'none';
+  }
+  if (!['Admin','NSH'].includes(currentRole)) {
+    document.getElementById('nav-all-cifs').style.display = 'none';
+  }
+
+  await loadCIFs();
+  navigate('dashboard');
+}
+
+function detectRoleFromEmail(email) {
+  if (email.includes('asm')) return 'ASM';
+  if (email.includes('rsm')) return 'RSM';
+  if (email.includes('train')) return 'Trainer';
+  if (email.includes('rd') || email.includes('r&d')) return 'RD';
+  if (email.includes('quality') || email.includes('qc')) return 'Quality';
+  if (email.includes('pm') || email.includes('product')) return 'PM';
+  if (email.includes('nsh')) return 'NSH';
+  return 'ST';
+}
+
+async function signOut() {
+  await msalInstance.logoutPopup().catch(() => {});
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appRoot').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
+// GRAPH API HELPERS
+// ══════════════════════════════════════════════
+async function getToken() {
+  const account = msalInstance.getActiveAccount();
+  if (!account) return null;
+  try {
+    const resp = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return resp.accessToken;
+  } catch {
+    const resp = await msalInstance.acquireTokenPopup({ scopes: SCOPES });
+    return resp.accessToken;
+  }
+}
+
+async function spGet(endpoint) {
+  const token = await getToken();
+  if (!token) return { value: [] };
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${getSiteId()}${endpoint}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return r.json();
+}
+
+async function spPost(listName, body) {
+  const token = await getToken();
+  if (!token) throw new Error("No token");
+  const siteInfo = await getSharePointSiteInfo();
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteInfo}/lists/${listName}/items`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: body })
+  });
+  return r.json();
+}
+
+async function spPatch(listName, itemId, body) {
+  const token = await getToken();
+  if (!token) throw new Error("No token");
+  const siteInfo = await getSharePointSiteInfo();
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteInfo}/lists/${listName}/items/${itemId}/fields`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+let _siteId = null;
+async function getSharePointSiteInfo() {
+  if (_siteId) return _siteId;
+  const token = await getToken();
+  const url = SHAREPOINT_SITE.replace('https://','').split('/');
+  const hostname = url[0], path = url.slice(1).join('/');
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${hostname}:/${path}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const d = await r.json();
+  _siteId = d.id;
+  return _siteId;
+}
+
+async function sendEmail(to, subject, body) {
+  const token = await getToken();
+  if (!token) return;
+  await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: {
+        subject,
+        body: { contentType: 'HTML', content: body },
+        toRecipients: [{ emailAddress: { address: to } }]
+      }
+    })
+  });
+}
+
+// ══════════════════════════════════════════════
+// DATA LAYER
+// ══════════════════════════════════════════════
+async function loadCIFs() {
+  try {
+    const siteId = await getSharePointSiteInfo();
+    const token = await getToken();
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${SP_LIST_CIF}/items?expand=fields&$top=500&$orderby=fields/Created desc`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const d = await r.json();
+    allCIFs = (d.value || []).map(i => ({ id: i.id, ...i.fields }));
+  } catch(e) {
+    // Demo data fallback
+    allCIFs = getDemoCIFs();
+  }
+  updateBadges();
+}
+
+function getDemoCIFs() {
+  const now = new Date();
+  const h = (hours) => new Date(now - hours * 3600000).toISOString();
+  return [
+    { id:"1", CIFNumber:"CIF-2025-0001", Category:"Wall", ProductGroup:"Interior Emulsion", SKU:"100234", CIFType:"Dry Film Performance", ComplaintType:"Peeling", CustomerName:"Rajesh Kumar", DealerName:"Ravi Paints", Location:"Chennai", Quantity:"10 Ltrs", Description:"Paint peeling after 2 months on exterior wall", Stage:"asm", AssignedTo:"asm@mrf.com", CreatedBy:currentUser?.email||"st@mrf.com", CreatedByName:"Arun ST", CreatedAt:h(6), StageChangedAt:h(6), Status:"active", ProductManager:"pm.wall@mrf.com", RDRemark:"", QualityRemark:"", PMRemark:"" },
+    { id:"2", CIFNumber:"CIF-2025-0002", Category:"Wood", ProductGroup:"PU Coat", SKU:"200456A", CIFType:"Color / Shade Variation", ComplaintType:"Off Shade", CustomerName:"Sundar Homes", DealerName:"Colors Plus", Location:"Coimbatore", Quantity:"5 Ltrs", Description:"PU coat shade does not match approved sample", Stage:"rd_quality", AssignedTo:"rd@mrf.com", CreatedBy:currentUser?.email||"st@mrf.com", CreatedByName:"Priya ST", CreatedAt:h(30), StageChangedAt:h(5), Status:"active", ProductManager:"pm.wood@mrf.com", RDRemark:"", QualityRemark:"", PMRemark:"" },
+    { id:"3", CIFNumber:"CIF-2025-0003", Category:"Metal", ProductGroup:"Anti-corrosive Paint", SKU:"300789", CIFType:"Application", ComplaintType:"Sagging / Running", CustomerName:"Industrial Corp", DealerName:"Metro Paints", Location:"Bangalore", Quantity:"20 Ltrs", Description:"Severe sagging observed during application in humid conditions", Stage:"pm", AssignedTo:"pm.metal@mrf.com", CreatedBy:currentUser?.email||"st@mrf.com", CreatedByName:"Ravi ST", CreatedAt:h(72), StageChangedAt:h(10), Status:"active", ProductManager:"pm.metal@mrf.com", RDRemark:"Viscosity found within spec. Application temperature may be a factor.", QualityRemark:"Batch tested — passed all QC checks.", PMRemark:"" },
+    { id:"4", CIFNumber:"CIF-2025-0004", Category:"Wall", ProductGroup:"Exterior Emulsion", SKU:"100567", CIFType:"In-Can", ComplaintType:"Skinning", CustomerName:"Builder Pro", DealerName:"Grand Paints", Location:"Hyderabad", Quantity:"1 bucket", Description:"Thick skin formation on top of paint in sealed bucket", Stage:"closed", Status:"closed", CreatedBy:currentUser?.email||"st@mrf.com", CreatedByName:"Suresh ST", CreatedAt:h(120), StageChangedAt:h(48), ProductManager:"pm.wall@mrf.com", RDRemark:"Storage at high temp caused skinning.", QualityRemark:"Batch clear — storage advisory issued.", PMRemark:"Customer advisory sent. Case closed.", NSHRemark:"Approved closure." },
+    { id:"5", CIFNumber:"CIF-2025-0005", Category:"Wall", ProductGroup:"Putty", SKU:"100890", CIFType:"Packaging", ComplaintType:"Leakage", CustomerName:"Home Build Ltd", DealerName:"Ashok Paints", Location:"Mumbai", Quantity:"3 bags", Description:"Putty bags leaking from seam", Stage:"trainer", AssignedTo:"trainer@mrf.com", CreatedBy:currentUser?.email||"st@mrf.com", CreatedByName:"Kiran ST", CreatedAt:h(15), StageChangedAt:h(3), Status:"active", ProductManager:"pm.wall@mrf.com" }
+  ];
+}
+
+function updateBadges() {
+  const pending = allCIFs.filter(c => isMine(c) && c.Status !== 'closed').length;
+  const mine = allCIFs.filter(c => c.CreatedBy === currentUser?.email).length;
+  const pb = document.getElementById('badgePending');
+  const mb = document.getElementById('badgeMyCifs');
+  if (pending > 0) { pb.textContent = pending; pb.style.display = ''; } else pb.style.display = 'none';
+  if (mine > 0) { mb.textContent = mine; mb.style.display = ''; } else mb.style.display = 'none';
+}
+
+function isMine(cif) {
+  const stageRoles = {
+    asm: ['ASM'], trainer: ['Trainer'], rsm: ['RSM'],
+    rd_quality: ['RD','Quality'], pm: ['PM'], nsh: ['NSH']
+  };
+  return (stageRoles[cif.Stage] || []).includes(currentRole);
+}
+
+// ══════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════
+function navigate(page, data) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.getElementById(`nav-${page}`);
+  if (navEl) navEl.classList.add('active');
+
+  const main = document.getElementById('mainContent');
+  switch(page) {
+    case 'dashboard': main.innerHTML = renderDashboard(); break;
+    case 'new-cif': main.innerHTML = renderNewCIF(); attachNewCIFHandlers(); break;
+    case 'my-cifs': main.innerHTML = renderCIFList('mine'); break;
+    case 'pending': main.innerHTML = renderCIFList('pending'); break;
+    case 'all-cifs': main.innerHTML = renderCIFList('all'); break;
+    case 'view-cif': main.innerHTML = renderViewCIF(data); break;
+    case 'reports': main.innerHTML = renderReports(); break;
+  }
+}
+
+// ══════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════
+function renderDashboard() {
+  const total = allCIFs.length;
+  const active = allCIFs.filter(c => c.Status !== 'closed').length;
+  const overdue = allCIFs.filter(c => isOverdue(c)).length;
+  const closed = allCIFs.filter(c => c.Status === 'closed').length;
+  const myPending = allCIFs.filter(c => isMine(c)).length;
+
+  const recent = allCIFs.slice(0,8);
+
+  return `
+  <div class="page-header">
+    <div class="page-title">Dashboard</div>
+    <div class="page-sub">Welcome back, ${currentUser?.name} · ${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})}</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card red">
+      <div class="stat-label">Total CIFs</div>
+      <div class="stat-value">${total}</div>
+      <div class="stat-sub">All time</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-label">Active</div>
+      <div class="stat-value">${active}</div>
+      <div class="stat-sub">In progress</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Overdue</div>
+      <div class="stat-value">${overdue}</div>
+      <div class="stat-sub">TAT breached</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Closed</div>
+      <div class="stat-value">${closed}</div>
+      <div class="stat-sub">Resolved</div>
+    </div>
+  </div>
+
+  ${myPending > 0 ? `
+  <div style="background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display:flex; align-items:center; gap:10px;">
+    <span style="font-size:20px;">⏳</span>
+    <div>
+      <div style="font-weight:700; color:#92400e;">You have ${myPending} CIF(s) pending your action</div>
+      <div style="font-size:12px;color:#b45309;margin-top:2px;">Please review and act within the TAT window</div>
+    </div>
+    <button class="btn btn-amber btn-sm" style="margin-left:auto;" onclick="navigate('pending')">View →</button>
+  </div>` : ''}
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Recent CIFs</div>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('all-cifs')">View all →</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>CIF No.</th><th>Category</th><th>Type</th><th>Stage</th><th>TAT</th></tr></thead>
+          <tbody>
+            ${recent.map(c => `
+            <tr onclick="navigate('view-cif','${c.id}')" style="cursor:pointer;">
+              <td><span class="cif-id">${c.CIFNumber}</span></td>
+              <td>${c.Category}</td>
+              <td><span style="font-size:12px;">${c.CIFType}</span></td>
+              <td>${stageChip(c)}</td>
+              <td>${tatCell(c)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">By Category</div></div>
+      <div class="card-body">
+        ${CATEGORIES.map(cat => {
+          const count = allCIFs.filter(c => c.Category === cat).length;
+          const pct = total ? Math.round(count/total*100) : 0;
+          return `
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span style="font-size:13px;font-weight:600;">${cat}</span>
+              <span style="font-size:13px;color:var(--ink-faint);">${count}</span>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;">
+              <div style="height:100%;width:${pct}%;background:var(--red);border-radius:4px;transition:width 0.5s;"></div>
+            </div>
+          </div>`;
+        }).join('')}
+
+        <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-faint);margin-bottom:10px;">By CIF Type</div>
+          ${CIF_TYPES.map(t => {
+            const count = allCIFs.filter(c => c.CIFType === t).length;
+            return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;">
+              <span style="color:var(--ink-soft)">${t}</span>
+              <span style="font-weight:600;">${count}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// NEW CIF FORM
+// ══════════════════════════════════════════════
+function renderNewCIF() {
+  return `
+  <div class="page-header">
+    <div class="page-title">New Complaint Investigation Form</div>
+    <div class="page-sub">Fill in the complaint details. All fields marked * are required.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🗒️ CIF Details</div>
+    </div>
+    <div class="card-body">
+      <!-- SECTION: Product Info -->
+      <div class="form-grid" id="cifForm">
+        <div class="section-divider">🎨 Product Information</div>
+
+        <div class="field">
+          <label>Category *</label>
+          <select id="fCategory" onchange="onCategoryChange()">
+            <option value="">— Select Category —</option>
+            ${CATEGORIES.map(c => `<option>${c}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Product Group *</label>
+          <select id="fProductGroup" onchange="onGroupChange()" disabled>
+            <option value="">— Select Category first —</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>SKU / Product Code *</label>
+          <input type="text" id="fSKU" placeholder="e.g. 100234 or AB1234XYZ" maxlength="12">
+          <span class="field-hint">6-digit numeric or 9-character alphanumeric</span>
+        </div>
+
+        <div class="field">
+          <label>CIF Type *</label>
+          <select id="fCIFType" onchange="onCIFTypeChange()">
+            <option value="">— Select CIF Type —</option>
+            ${CIF_TYPES.map(t => `<option>${t}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Complaint Sub-Type *</label>
+          <select id="fComplaintType" disabled>
+            <option value="">— Select CIF Type first —</option>
+          </select>
+        </div>
+
+        <div class="section-divider">👤 Customer & Dealer Information</div>
+
+        <div class="field">
+          <label>Customer Name *</label>
+          <input type="text" id="fCustomerName" placeholder="End customer / applicator name">
+        </div>
+
+        <div class="field">
+          <label>Customer Contact</label>
+          <input type="text" id="fCustomerContact" placeholder="Phone or email">
+        </div>
+
+        <div class="field">
+          <label>Dealer Name *</label>
+          <input type="text" id="fDealerName" placeholder="Dealer / distributor name">
+        </div>
+
+        <div class="field">
+          <label>Site / Location *</label>
+          <input type="text" id="fLocation" placeholder="City, State">
+        </div>
+
+        <div class="field">
+          <label>Site Address</label>
+          <input type="text" id="fSiteAddress" placeholder="Full address (optional)">
+        </div>
+
+        <div class="section-divider">📋 Complaint Details</div>
+
+        <div class="field">
+          <label>Date of Purchase / Application *</label>
+          <input type="date" id="fPurchaseDate" max="${new Date().toISOString().split('T')[0]}">
+        </div>
+
+        <div class="field">
+          <label>Quantity Affected *</label>
+          <input type="text" id="fQuantity" placeholder="e.g. 2 buckets (20 Ltrs)">
+        </div>
+
+        <div class="field form-full">
+          <label>Complaint Description *</label>
+          <textarea id="fDescription" placeholder="Describe the issue in detail — when it was observed, conditions, surface type, etc." rows="4"></textarea>
+        </div>
+
+        <div class="field form-full">
+          <label>Photos / Supporting Images</label>
+          <div class="photo-upload" onclick="document.getElementById('fPhotos').click()">
+            <div style="font-size:24px;margin-bottom:6px;">📷</div>
+            <div style="font-size:13px;font-weight:600;">Click to upload photos</div>
+            <div style="font-size:11px;margin-top:4px;">JPG, PNG up to 10MB each</div>
+          </div>
+          <input type="file" id="fPhotos" multiple accept="image/*" style="display:none" onchange="handlePhotoUpload(event)">
+          <div class="photo-preview" id="photoPreview"></div>
+        </div>
+
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+        <button class="btn btn-secondary" onclick="navigate('dashboard')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitCIF()">📤 Submit CIF</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function attachNewCIFHandlers() {
+  // already using inline onchange
+}
+
+function onCategoryChange() {
+  const cat = document.getElementById('fCategory').value;
+  const grpSel = document.getElementById('fProductGroup');
+  grpSel.disabled = !cat;
+  grpSel.innerHTML = cat
+    ? `<option value="">— Select Product Group —</option>${(PRODUCT_GROUPS[cat]||[]).map(g=>`<option>${g}</option>`).join('')}`
+    : `<option value="">— Select Category first —</option>`;
+}
+
+function onGroupChange() {}
+
+function onCIFTypeChange() {
+  const type = document.getElementById('fCIFType').value;
+  const sub = document.getElementById('fComplaintType');
+  sub.disabled = !type;
+  sub.innerHTML = type
+    ? `<option value="">— Select Sub-Type —</option>${(COMPLAINT_TYPES_MAP[type]||[]).map(s=>`<option>${s}</option>`).join('')}`
+    : `<option value="">— Select CIF Type first —</option>`;
+}
+
+function handlePhotoUpload(e) {
+  pendingUploadFiles = Array.from(e.target.files);
+  const preview = document.getElementById('photoPreview');
+  preview.innerHTML = '';
+  pendingUploadFiles.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      img.className = 'photo-thumb';
+      preview.appendChild(img);
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+async function submitCIF() {
+  const vals = {
+    Category: v('fCategory'), ProductGroup: v('fProductGroup'), SKU: v('fSKU'),
+    CIFType: v('fCIFType'), ComplaintType: v('fComplaintType'),
+    CustomerName: v('fCustomerName'), CustomerContact: v('fCustomerContact'),
+    DealerName: v('fDealerName'), Location: v('fLocation'), SiteAddress: v('fSiteAddress'),
+    PurchaseDate: v('fPurchaseDate'), Quantity: v('fQuantity'), Description: v('fDescription')
+  };
+
+  const required = ['Category','ProductGroup','SKU','CIFType','ComplaintType','CustomerName','DealerName','Location','PurchaseDate','Quantity','Description'];
+  for (const f of required) {
+    if (!vals[f]) { showToast(`Please fill in: ${f.replace(/([A-Z])/g,' $1').trim()}`, 'error'); return; }
+  }
+
+  const cifNum = `CIF-${new Date().getFullYear()}-${String(allCIFs.length + 1).padStart(4,'0')}`;
+  const newCIF = {
+    ...vals,
+    CIFNumber: cifNum,
+    Stage: 'asm',
+    Status: 'active',
+    CreatedBy: currentUser.email,
+    CreatedByName: currentUser.name,
+    CreatedAt: new Date().toISOString(),
+    StageChangedAt: new Date().toISOString(),
+    ProductManager: getProductManager(vals.Category)
+  };
+
+  // Save to SharePoint
+  showToast('Submitting CIF...', '');
+  try {
+    await spPost(SP_LIST_CIF, newCIF);
+  } catch(e) {
+    // Demo fallback
+    newCIF.id = String(Date.now());
+    allCIFs.unshift(newCIF);
+  }
+  await loadCIFs();
+  showToast(`✅ ${cifNum} submitted successfully!`, 'success');
+  navigate('my-cifs');
+}
+
+function v(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+function getProductManager(category) {
+  const map = { "Wall": "pm.wall@mrf.com", "Wood": "pm.wood@mrf.com", "Metal": "pm.metal@mrf.com", "Others": "pm.others@mrf.com" };
+  return map[category] || "pm@mrf.com";
+}
+
+// ══════════════════════════════════════════════
+// CIF LIST
+// ══════════════════════════════════════════════
+function renderCIFList(mode) {
+  let list = allCIFs;
+  let title = 'All CIFs';
+  if (mode === 'mine') { list = allCIFs.filter(c => c.CreatedBy === currentUser?.email); title = 'My CIFs'; }
+  if (mode === 'pending') { list = allCIFs.filter(c => isMine(c) && c.Status !== 'closed'); title = 'Pending My Action'; }
+
+  return `
+  <div class="page-header">
+    <div class="page-title">${title}</div>
+    <div class="page-sub">${list.length} record(s) found</div>
+  </div>
+
+  <div class="search-bar">
+    <input class="search-input" id="searchInput" placeholder="Search by CIF number, customer, dealer, location..." oninput="filterList('${mode}')">
+    <select class="filter-select" id="filterStatus" onchange="filterList('${mode}')">
+      <option value="">All Status</option>
+      <option value="active">Active</option>
+      <option value="closed">Closed</option>
+    </select>
+    <select class="filter-select" id="filterCategory" onchange="filterList('${mode}')">
+      <option value="">All Categories</option>
+      ${CATEGORIES.map(c => `<option>${c}</option>`).join('')}
+    </select>
+    ${mode !== 'pending' ? `<button class="btn btn-primary" onclick="navigate('new-cif')">+ New CIF</button>` : ''}
+  </div>
+
+  <div class="card" id="cifListCard">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>CIF No.</th>
+            <th>Category</th>
+            <th>Product Group</th>
+            <th>CIF Type</th>
+            <th>Customer</th>
+            <th>Location</th>
+            <th>Stage</th>
+            <th>TAT</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="cifTableBody">
+          ${renderCIFRows(list)}
+        </tbody>
+      </table>
+      ${list.length === 0 ? `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No CIFs found</div></div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderCIFRows(list) {
+  return list.map(c => `
+  <tr onclick="navigate('view-cif','${c.id}')" style="cursor:pointer;">
+    <td><span class="cif-id">${c.CIFNumber}</span></td>
+    <td>${c.Category}</td>
+    <td style="font-size:12px;">${c.ProductGroup || '-'}</td>
+    <td><span style="font-size:12px;">${c.CIFType}</span></td>
+    <td>${c.CustomerName}</td>
+    <td style="font-size:12px;">${c.Location}</td>
+    <td>${stageChip(c)}</td>
+    <td>${tatCell(c)}</td>
+    <td style="font-size:12px;color:var(--ink-faint);">${fmtDate(c.CreatedAt)}</td>
+  </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--ink-faint);padding:32px;">No records found</td></tr>';
+}
+
+function filterList(mode) {
+  const q = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+  const status = document.getElementById('filterStatus')?.value || '';
+  const category = document.getElementById('filterCategory')?.value || '';
+  let list = allCIFs;
+  if (mode === 'mine') list = allCIFs.filter(c => c.CreatedBy === currentUser?.email);
+  if (mode === 'pending') list = allCIFs.filter(c => isMine(c) && c.Status !== 'closed');
+  if (q) list = list.filter(c => JSON.stringify(c).toLowerCase().includes(q));
+  if (status) list = list.filter(c => c.Status === status);
+  if (category) list = list.filter(c => c.Category === category);
+  document.getElementById('cifTableBody').innerHTML = renderCIFRows(list);
+}
+
+// ══════════════════════════════════════════════
+// VIEW CIF
+// ══════════════════════════════════════════════
+function renderViewCIF(id) {
+  const cif = allCIFs.find(c => c.id === id);
+  if (!cif) return `<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-title">CIF not found</div></div>`;
+
+  const canAct = canActOn(cif);
+  const stageLabel = WORKFLOW_STAGES.find(s => s.key === cif.Stage)?.label || cif.Stage;
+
+  return `
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+    <button class="btn btn-secondary btn-sm" onclick="history.back() || navigate('all-cifs')">← Back</button>
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;">${cif.CIFNumber}</div>
+        ${stageChip(cif)}
+        ${tatCell(cif)}
+      </div>
+      <div style="font-size:12px;color:var(--ink-faint);margin-top:2px;">Submitted by ${cif.CreatedByName} · ${fmtDate(cif.CreatedAt)}</div>
+    </div>
+    ${cif.Status !== 'closed' && ['NSH','Admin'].includes(currentRole) ? `<button class="btn btn-green btn-sm" style="margin-left:auto;" onclick="closeCIF('${cif.id}')">✅ Close CIF</button>` : ''}
+  </div>
+
+  <div class="two-col" style="align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <!-- Product Info -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">🎨 Product Information</div></div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item"><div class="info-item-label">Category</div><div class="info-item-value">${cif.Category}</div></div>
+            <div class="info-item"><div class="info-item-label">Product Group</div><div class="info-item-value">${cif.ProductGroup||'-'}</div></div>
+            <div class="info-item"><div class="info-item-label">SKU</div><div class="info-item-value" style="font-family:monospace;">${cif.SKU}</div></div>
+            <div class="info-item"><div class="info-item-label">CIF Type</div><div class="info-item-value">${cif.CIFType}</div></div>
+            <div class="info-item"><div class="info-item-label">Sub-Type</div><div class="info-item-value">${cif.ComplaintType||'-'}</div></div>
+            <div class="info-item"><div class="info-item-label">Quantity</div><div class="info-item-value">${cif.Quantity||'-'}</div></div>
+          </div>
+          <div class="field" style="margin-top:8px;">
+            <label>Complaint Description</label>
+            <div style="background:var(--surface-2);padding:12px;border-radius:8px;font-size:13px;color:var(--ink-soft);border-left:3px solid var(--red);">${cif.Description}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customer Info -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">👤 Customer & Dealer</div></div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item"><div class="info-item-label">Customer</div><div class="info-item-value">${cif.CustomerName}</div></div>
+            <div class="info-item"><div class="info-item-label">Contact</div><div class="info-item-value">${cif.CustomerContact||'-'}</div></div>
+            <div class="info-item"><div class="info-item-label">Dealer</div><div class="info-item-value">${cif.DealerName||'-'}</div></div>
+            <div class="info-item"><div class="info-item-label">Location</div><div class="info-item-value">${cif.Location}</div></div>
+            <div class="info-item"><div class="info-item-label">Purchase Date</div><div class="info-item-value">${cif.PurchaseDate||'-'}</div></div>
+            <div class="info-item"><div class="info-item-label">Site Address</div><div class="info-item-value">${cif.SiteAddress||'-'}</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical Remarks -->
+      ${(cif.RDRemark || cif.QualityRemark || cif.PMRemark || cif.NSHRemark) ? `
+      <div class="card">
+        <div class="card-header"><div class="card-title">🔬 Investigation Remarks</div></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+          ${cif.RDRemark ? `<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--purple);margin-bottom:4px;">R&D</div><div style="background:var(--purple-light);padding:10px 12px;border-radius:8px;font-size:13px;border-left:3px solid var(--purple);">${cif.RDRemark}</div></div>` : ''}
+          ${cif.QualityRemark ? `<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--blue);margin-bottom:4px;">Quality Team</div><div style="background:var(--blue-light);padding:10px 12px;border-radius:8px;font-size:13px;border-left:3px solid var(--blue);">${cif.QualityRemark}</div></div>` : ''}
+          ${cif.PMRemark ? `<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--amber);margin-bottom:4px;">Product Manager</div><div style="background:var(--amber-light);padding:10px 12px;border-radius:8px;font-size:13px;border-left:3px solid var(--amber);">${cif.PMRemark}</div></div>` : ''}
+          ${cif.NSHRemark ? `<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--green);margin-bottom:4px;">NSH</div><div style="background:var(--green-light);padding:10px 12px;border-radius:8px;font-size:13px;border-left:3px solid var(--green);">${cif.NSHRemark}</div></div>` : ''}
+        </div>
+      </div>` : ''}
+
+      <!-- Action Panel -->
+      ${canAct ? renderActionPanel(cif) : ''}
+    </div>
+
+    <!-- Workflow Timeline -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">🔄 Workflow Progress</div></div>
+      <div class="card-body">
+        <div class="timeline">
+          ${renderTimeline(cif)}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function canActOn(cif) {
+  if (cif.Status === 'closed') return false;
+  const stageRoles = {
+    asm: ['ASM'], trainer: ['Trainer'], rsm: ['RSM'],
+    rd_quality: ['RD','Quality'], pm: ['PM'], nsh: ['NSH']
+  };
+  return (stageRoles[cif.Stage] || []).includes(currentRole);
+}
+
+function renderActionPanel(cif) {
+  const isRDQuality = cif.Stage === 'rd_quality';
+  const isRD = currentRole === 'RD';
+  const isQuality = currentRole === 'Quality';
+
+  return `
+  <div class="action-panel">
+    <div class="action-panel-title">✏️ Your Action Required</div>
+    ${isRDQuality ? `
+      <div class="parallel-group" style="margin-bottom:12px;">
+        <div class="parallel-tag">⚗️ R&D</div>
+        <div style="font-size:12px;color:var(--ink-faint);align-self:center;">running in parallel with</div>
+        <div class="parallel-tag">🔍 Quality Team</div>
+      </div>
+    ` : ''}
+    <div class="field" style="margin-bottom:12px;">
+      <label>${isRD ? 'R&D Investigation Findings' : isQuality ? 'Quality Team Remarks' : 'Remarks / Decision'}</label>
+      <textarea id="actionRemark" rows="3" placeholder="Enter your findings, remarks or decision..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="approveStage('${cif.id}')">
+        ${isRDQuality ? (isRD ? '✅ Submit R&D Findings' : '✅ Submit Quality Remarks') : '✅ Approve & Forward'}
+      </button>
+      <button class="btn btn-amber" onclick="returnCIF('${cif.id}')">↩️ Return for Clarification</button>
+    </div>
+  </div>`;
+}
+
+function renderTimeline(cif) {
+  const stages = [
+    { key: 'submitted', label: 'CIF Submitted', role: 'ST', icon: '📝' },
+    { key: 'asm', label: 'ASM Review', role: 'ASM', icon: '👤', tat: '24 hrs' },
+    { key: 'trainer', label: 'Trainer Review', role: 'Trainer', icon: '🎓', tat: '24 hrs' },
+    { key: 'rsm', label: 'RSM Review', role: 'RSM', icon: '👔', tat: '24 hrs' },
+    { key: 'rd_quality', label: 'R&D + Quality (Parallel)', role: 'RD + Quality', icon: '⚗️', tat: '48 hrs', parallel: true },
+    { key: 'pm', label: 'Product Manager', role: 'PM', icon: '📦', tat: '24 hrs' },
+    { key: 'nsh', label: 'NSH Approval', role: 'NSH', icon: '🏆', tat: '24 hrs' },
+    { key: 'closed', label: 'Closed', role: '', icon: '✅' }
+  ];
+
+  const stageOrder = stages.map(s => s.key);
+  const currentIdx = stageOrder.indexOf(cif.Stage);
+
+  return stages.map((s, i) => {
+    const isDone = i < currentIdx || cif.Status === 'closed';
+    const isActive = s.key === cif.Stage && cif.Status !== 'closed';
+    const isPending = i > currentIdx;
+    const isParallel = s.parallel;
+
+    let cls = isPending ? 'pending' : isDone ? 'done' : isActive ? 'active' : '';
+    if (isParallel && isActive) cls = 'parallel';
+
+    return `
+    <div class="tl-item">
+      <div class="tl-dot ${cls}">${isDone ? '✓' : s.icon}</div>
+      <div class="tl-content">
+        <div class="tl-title">${s.label}</div>
+        <div class="tl-meta">
+          ${s.role ? `<span style="color:var(--ink-faint)">${s.role}</span>` : ''}
+          ${s.tat ? ` · <span style="color:var(--ink-faint);font-size:11px;">TAT: ${s.tat}</span>` : ''}
+          ${isActive ? ' · <span style="color:var(--red);font-weight:600;font-size:11px;">CURRENT STAGE</span>' : ''}
+          ${isDone ? ` · <span style="color:var(--green);font-size:11px;">✓ Completed</span>` : ''}
+        </div>
+        ${isParallel && isActive ? `
+        <div style="margin-top:6px;">
+          <div class="parallel-group">
+            <div class="parallel-tag">⚗️ R&D ${cif.RDRemark ? '✓' : '⏳'}</div>
+            <div class="parallel-tag">🔍 Quality ${cif.QualityRemark ? '✓' : '⏳'}</div>
+          </div>
+        </div>` : ''}
+        ${s.key === 'rsm' && cif.RSMRemark ? `<div class="tl-remark">${cif.RSMRemark}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// WORKFLOW ACTIONS
+// ══════════════════════════════════════════════
+async function approveStage(cifId) {
+  const cif = allCIFs.find(c => c.id === cifId);
+  if (!cif) return;
+  const remark = document.getElementById('actionRemark')?.value?.trim() || '';
+
+  const stageFlow = ['submitted','asm','trainer','rsm','rd_quality','pm','nsh','closed'];
+  const currentIdx = stageFlow.indexOf(cif.Stage);
+
+  let updates = { StageChangedAt: new Date().toISOString() };
+
+  // Handle parallel R&D + Quality
+  if (cif.Stage === 'rd_quality') {
+    if (currentRole === 'RD') {
+      updates.RDRemark = remark;
+      updates.RDDone = 'true';
+    } else if (currentRole === 'Quality') {
+      updates.QualityRemark = remark;
+      updates.QualityDone = 'true';
+    }
+    // Only advance if both done
+    const bothDone = (updates.RDDone === 'true' || cif.RDDone === 'true') &&
+                     (updates.QualityDone === 'true' || cif.QualityDone === 'true');
+    if (bothDone) {
+      updates.Stage = 'pm';
+    } else {
+      // Just save partial progress
+      Object.assign(cif, updates);
+      try { await spPatch(SP_LIST_CIF, cifId, updates); } catch(e) {}
+      showToast('✅ Your findings saved. Waiting for parallel review to complete.', 'success');
+      navigate('view-cif', cifId);
+      return;
+    }
+  } else {
+    const remarkKey = { asm:'ASMRemark', trainer:'TrainerRemark', rsm:'RSMRemark', pm:'PMRemark', nsh:'NSHRemark' };
+    if (remarkKey[cif.Stage]) updates[remarkKey[cif.Stage]] = remark;
+    const nextStage = stageFlow[currentIdx + 1];
+    updates.Stage = nextStage || 'closed';
+    if (updates.Stage === 'closed') updates.Status = 'closed';
+  }
+
+  Object.assign(cif, updates);
+  try { await spPatch(SP_LIST_CIF, cifId, updates); } catch(e) {}
+  showToast(`✅ Forwarded to ${WORKFLOW_STAGES.find(s=>s.key===updates.Stage)?.label || 'next stage'}`, 'success');
+  await loadCIFs();
+  navigate('view-cif', cifId);
+}
+
+async function returnCIF(cifId) {
+  const cif = allCIFs.find(c => c.id === cifId);
+  const remark = document.getElementById('actionRemark')?.value?.trim() || '';
+  if (!remark) { showToast('Please add a remark before returning', 'error'); return; }
+
+  const updates = {
+    Stage: 'asm', // Return to start
+    Status: 'returned',
+    ReturnRemark: remark,
+    StageChangedAt: new Date().toISOString()
+  };
+  Object.assign(cif, updates);
+  try { await spPatch(SP_LIST_CIF, cifId, updates); } catch(e) {}
+  showToast('↩️ CIF returned for clarification', '');
+  await loadCIFs();
+  navigate('view-cif', cifId);
+}
+
+async function closeCIF(cifId) {
+  const cif = allCIFs.find(c => c.id === cifId);
+  const updates = { Stage: 'closed', Status: 'closed', ClosedAt: new Date().toISOString() };
+  Object.assign(cif, updates);
+  try { await spPatch(SP_LIST_CIF, cifId, updates); } catch(e) {}
+  showToast('✅ CIF closed successfully', 'success');
+  await loadCIFs();
+  navigate('view-cif', cifId);
+}
+
+// ══════════════════════════════════════════════
+// REPORTS
+// ══════════════════════════════════════════════
+function renderReports() {
+  const byStage = {};
+  WORKFLOW_STAGES.forEach(s => byStage[s.key] = allCIFs.filter(c => c.Stage === s.key).length);
+  const byCategory = {};
+  CATEGORIES.forEach(cat => byCategory[cat] = allCIFs.filter(c => c.Category === cat).length);
+
+  return `
+  <div class="page-header">
+    <div class="page-title">Analytics</div>
+    <div class="page-sub">CIF performance overview</div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-header"><div class="card-title">By Stage</div></div>
+      <div class="card-body">
+        ${WORKFLOW_STAGES.filter(s => s.key !== 'submitted').map(s => {
+          const count = byStage[s.key] || 0;
+          const max = Math.max(...Object.values(byStage), 1);
+          const pct = Math.round(count/max*100);
+          return `<div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:13px;">${s.label}</span>
+              <span style="font-size:13px;font-weight:600;">${count}</span>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;">
+              <div style="height:100%;width:${pct}%;background:var(--red);border-radius:4px;"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">By CIF Type</div></div>
+      <div class="card-body">
+        ${CIF_TYPES.map(t => {
+          const count = allCIFs.filter(c => c.CIFType === t).length;
+          const pct = allCIFs.length ? Math.round(count/allCIFs.length*100) : 0;
+          return `<div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:13px;">${t}</span>
+              <span style="font-size:13px;font-weight:600;">${count} <span style="color:var(--ink-faint);font-weight:400;">(${pct}%)</span></span>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;">
+              <div style="height:100%;width:${pct}%;background:var(--blue);border-radius:4px;"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════
+function stageChip(cif) {
+  if (cif.Status === 'closed') return `<span class="chip chip-closed">✅ Closed</span>`;
+  if (cif.Status === 'returned') return `<span class="chip chip-overdue">↩️ Returned</span>`;
+  const labels = { submitted:'Submitted', asm:'ASM Review', trainer:'Trainer', rsm:'RSM Review', rd_quality:'R&D + QC', pm:'Prod. Mgr', nsh:'NSH' };
+  const label = labels[cif.Stage] || cif.Stage;
+  if (cif.Stage === 'rd_quality') return `<span class="chip chip-parallel">⚗️ ${label}</span>`;
+  if (isOverdue(cif)) return `<span class="chip chip-overdue">⚠️ ${label}</span>`;
+  return `<span class="chip chip-progress">🔵 ${label}</span>`;
+}
+
+function isOverdue(cif) {
+  if (cif.Status === 'closed' || !cif.StageChangedAt) return false;
+  const stage = WORKFLOW_STAGES.find(s => s.key === cif.Stage);
+  if (!stage || !stage.tat) return false;
+  const elapsed = (Date.now() - new Date(cif.StageChangedAt)) / 3600000;
+  return elapsed > stage.tat;
+}
+
+function tatCell(cif) {
+  if (cif.Status === 'closed') return `<span style="color:var(--green);font-size:12px;">✓</span>`;
+  const stage = WORKFLOW_STAGES.find(s => s.key === cif.Stage);
+  if (!stage || !stage.tat || !cif.StageChangedAt) return '-';
+  const elapsed = (Date.now() - new Date(cif.StageChangedAt)) / 3600000;
+  const pct = Math.min(elapsed / stage.tat * 100, 100);
+  const cls = pct < 60 ? 'tat-ok' : pct < 90 ? 'tat-warn' : 'tat-over';
+  const remaining = Math.max(stage.tat - elapsed, 0);
+  return `<div>
+    <div style="font-size:11px;color:var(--ink-faint);">${remaining.toFixed(0)}h left</div>
+    <div class="tat-bar"><div class="tat-fill ${cls}" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function showToast(msg, type) {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${msg}</span>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// Auto-init if already signed in
+window.addEventListener('load', async () => {
+  await msalInstance.initialize();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    msalInstance.setActiveAccount(accounts[0]);
+    await initApp(accounts[0]);
+  }
+});
+</script>
+</body>
+</html>
